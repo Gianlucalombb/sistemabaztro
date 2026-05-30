@@ -1,32 +1,41 @@
-import { useState } from 'react'
-
-const clientesIniciales = [
-  { id: 1, nombre: 'Distribuidora López', email: 'lopez@gmail.com', telefono: '11-4567-8901', direccion: 'Av. San Martín 1234, CABA' },
-  { id: 2, nombre: 'Mercado El Sol', email: 'elsol@gmail.com', telefono: '11-5678-9012', direccion: 'Rivadavia 567, GBA' },
-  { id: 3, nombre: 'Almacén Don Pepe', email: 'donpepe@gmail.com', telefono: '11-6789-0123', direccion: 'Corrientes 890, CABA' },
-]
+import { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 
 function Clientes() {
-  const [clientes, setClientes] = useState(clientesIniciales)
+  const [clientes, setClientes] = useState([])
   const [busqueda, setBusqueda] = useState('')
   const [mostrarForm, setMostrarForm] = useState(false)
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: '', email: '', telefono: '', direccion: '' })
+  const [cargando, setCargando] = useState(true)
 
-  const clientesFiltrados = clientes.filter(c =>
-    c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.email.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  useEffect(() => {
+    cargarClientes()
+  }, [])
 
-  function agregarCliente() {
+  async function cargarClientes() {
+    setCargando(true)
+    const { data } = await supabase.from('clientes').select('*').order('created_at', { ascending: false })
+    if (data) setClientes(data)
+    setCargando(false)
+  }
+
+  async function agregarCliente() {
     if (!nuevoCliente.nombre) return
-    const cliente = {
-      id: clientes.length + 1,
-      ...nuevoCliente,
-    }
-    setClientes([...clientes, cliente])
+    const { data } = await supabase.from('clientes').insert([{
+      nombre: nuevoCliente.nombre,
+      email: nuevoCliente.email,
+      telefono: nuevoCliente.telefono,
+      direccion: nuevoCliente.direccion,
+    }]).select()
+    if (data) setClientes([data[0], ...clientes])
     setNuevoCliente({ nombre: '', email: '', telefono: '', direccion: '' })
     setMostrarForm(false)
   }
+
+  const clientesFiltrados = clientes.filter(c =>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.email?.toLowerCase().includes(busqueda.toLowerCase())
+  )
 
   return (
     <div className="flex-1 flex flex-col">
@@ -88,18 +97,8 @@ function Clientes() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={agregarCliente}
-                className="bg-gray-900 text-white text-xs px-4 py-2 rounded-lg"
-              >
-                Guardar cliente
-              </button>
-              <button
-                onClick={() => setMostrarForm(false)}
-                className="border border-gray-200 text-gray-500 text-xs px-4 py-2 rounded-lg"
-              >
-                Cancelar
-              </button>
+              <button onClick={agregarCliente} className="bg-gray-900 text-white text-xs px-4 py-2 rounded-lg">Guardar cliente</button>
+              <button onClick={() => setMostrarForm(false)} className="border border-gray-200 text-gray-500 text-xs px-4 py-2 rounded-lg">Cancelar</button>
             </div>
           </div>
         )}
@@ -116,26 +115,34 @@ function Clientes() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 text-gray-400">
-                <th className="text-left px-4 py-3 font-normal">Nombre</th>
-                <th className="text-left px-4 py-3 font-normal">Email</th>
-                <th className="text-left px-4 py-3 font-normal">Teléfono</th>
-                <th className="text-left px-4 py-3 font-normal">Dirección</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientesFiltrados.map(cliente => (
-                <tr key={cliente.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{cliente.nombre}</td>
-                  <td className="px-4 py-3 text-gray-400">{cliente.email}</td>
-                  <td className="px-4 py-3 text-gray-400">{cliente.telefono}</td>
-                  <td className="px-4 py-3 text-gray-400">{cliente.direccion}</td>
+          {cargando ? (
+            <p className="text-xs text-gray-300 text-center py-12">Cargando clientes...</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-400">
+                  <th className="text-left px-4 py-3 font-normal">Nombre</th>
+                  <th className="text-left px-4 py-3 font-normal">Email</th>
+                  <th className="text-left px-4 py-3 font-normal">Teléfono</th>
+                  <th className="text-left px-4 py-3 font-normal">Dirección</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {clientesFiltrados.length === 0 ? (
+                  <tr><td colSpan="4" className="text-center py-12 text-gray-300">No hay clientes todavía</td></tr>
+                ) : (
+                  clientesFiltrados.map(cliente => (
+                    <tr key={cliente.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900">{cliente.nombre}</td>
+                      <td className="px-4 py-3 text-gray-400">{cliente.email}</td>
+                      <td className="px-4 py-3 text-gray-400">{cliente.telefono}</td>
+                      <td className="px-4 py-3 text-gray-400">{cliente.direccion}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
       </div>

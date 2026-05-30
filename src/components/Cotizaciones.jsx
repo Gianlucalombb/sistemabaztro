@@ -1,21 +1,31 @@
-import { useState } from 'react'
-
-const productosDisponibles = [
-  { id: 1, nombre: 'Aceite girasol x12', precio: 4200 },
-  { id: 2, nombre: 'Arroz largo fino 5kg', precio: 1850 },
-  { id: 3, nombre: 'Azúcar blanca 2kg', precio: 890 },
-  { id: 4, nombre: 'Harina 000 x10', precio: 2100 },
-  { id: 5, nombre: 'Yerba mate 500g', precio: 650 },
-  { id: 6, nombre: 'Jabón en polvo 3kg', precio: 1320 },
-]
+import { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 
 function Cotizaciones() {
+  const [productosDisponibles, setProductosDisponibles] = useState([])
   const [cliente, setCliente] = useState('')
   const [validez, setValidez] = useState('7')
   const [descuento, setDescuento] = useState(0)
   const [items, setItems] = useState([])
   const [cotizaciones, setCotizaciones] = useState([])
   const [vista, setVista] = useState('nueva')
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    cargarProductos()
+    cargarCotizaciones()
+  }, [])
+
+  async function cargarProductos() {
+    const { data } = await supabase.from('productos').select('*').order('nombre')
+    if (data) setProductosDisponibles(data)
+    setCargando(false)
+  }
+
+  async function cargarCotizaciones() {
+    const { data } = await supabase.from('cotizaciones').select('*').order('created_at', { ascending: false })
+    if (data) setCotizaciones(data)
+  }
 
   function agregarItem(producto) {
     const existe = items.find(p => p.id === producto.id)
@@ -39,20 +49,17 @@ function Cotizaciones() {
   const descuentoMonto = subtotal * (descuento / 100)
   const total = subtotal - descuentoMonto
 
-  function guardarCotizacion() {
+  async function guardarCotizacion() {
     if (!cliente || items.length === 0) return
-    const cotizacion = {
-      id: cotizaciones.length + 1,
+    const { data } = await supabase.from('cotizaciones').insert([{
       cliente,
       validez,
       descuento,
-      items,
       subtotal,
       total,
-      fecha: new Date().toLocaleDateString('es-AR'),
       estado: 'Borrador',
-    }
-    setCotizaciones([cotizacion, ...cotizaciones])
+    }]).select()
+    if (data) setCotizaciones([data[0], ...cotizaciones])
     setCliente('')
     setItems([])
     setDescuento(0)
@@ -80,32 +87,34 @@ function Cotizaciones() {
       </div>
 
       <div className="p-5 flex flex-col gap-4">
-
         {vista === 'nueva' && (
           <div className="grid grid-cols-2 gap-4">
-
-            {/* Productos */}
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <p className="text-sm font-medium text-gray-900 mb-3">Productos</p>
-              <div className="flex flex-col gap-2">
-                {productosDisponibles.map(producto => (
-                  <div key={producto.id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                    <div>
-                      <p className="text-xs font-medium text-gray-900">{producto.nombre}</p>
-                      <p className="text-xs text-gray-400">${producto.precio.toLocaleString()}</p>
+              {cargando ? (
+                <p className="text-xs text-gray-300 text-center py-8">Cargando productos...</p>
+              ) : productosDisponibles.length === 0 ? (
+                <p className="text-xs text-gray-300 text-center py-8">No hay productos cargados todavía</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {productosDisponibles.map(producto => (
+                    <div key={producto.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                      <div>
+                        <p className="text-xs font-medium text-gray-900">{producto.nombre}</p>
+                        <p className="text-xs text-gray-400">${producto.precio.toLocaleString()}</p>
+                      </div>
+                      <button
+                        onClick={() => agregarItem(producto)}
+                        className="text-xs border border-gray-200 px-3 py-1 rounded-lg text-gray-500 hover:bg-gray-50"
+                      >
+                        + añadir
+                      </button>
                     </div>
-                    <button
-                      onClick={() => agregarItem(producto)}
-                      className="text-xs border border-gray-200 px-3 py-1 rounded-lg text-gray-500 hover:bg-gray-50"
-                    >
-                      + añadir
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Cotización */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-4">
               <p className="text-sm font-medium text-gray-900">Detalle de cotización</p>
 
@@ -215,7 +224,7 @@ function Cotizaciones() {
                     <tr key={cot.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-400">#{String(cot.id).padStart(4, '0')}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{cot.cliente}</td>
-                      <td className="px-4 py-3 text-gray-400">{cot.fecha}</td>
+                      <td className="px-4 py-3 text-gray-400">{new Date(cot.created_at).toLocaleDateString('es-AR')}</td>
                       <td className="px-4 py-3 text-gray-400">{cot.validez} días</td>
                       <td className="px-4 py-3">${cot.total.toLocaleString()}</td>
                       <td className="px-4 py-3"><span className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">{cot.estado}</span></td>
@@ -226,7 +235,6 @@ function Cotizaciones() {
             )}
           </div>
         )}
-
       </div>
     </div>
   )

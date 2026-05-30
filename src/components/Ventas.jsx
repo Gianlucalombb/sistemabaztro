@@ -1,19 +1,29 @@
-import { useState } from 'react'
-
-const productosDisponibles = [
-  { id: 1, nombre: 'Aceite girasol x12', precio: 4200, stock: 240 },
-  { id: 2, nombre: 'Arroz largo fino 5kg', precio: 1850, stock: 180 },
-  { id: 3, nombre: 'Azúcar blanca 2kg', precio: 890, stock: 12 },
-  { id: 4, nombre: 'Harina 000 x10', precio: 2100, stock: 95 },
-  { id: 5, nombre: 'Yerba mate 500g', precio: 650, stock: 0 },
-  { id: 6, nombre: 'Jabón en polvo 3kg', precio: 1320, stock: 310 },
-]
+import { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 
 function Ventas() {
+  const [productosDisponibles, setProductosDisponibles] = useState([])
   const [cliente, setCliente] = useState('')
   const [carrito, setCarrito] = useState([])
   const [ventas, setVentas] = useState([])
   const [vista, setVista] = useState('nueva')
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    cargarProductos()
+    cargarVentas()
+  }, [])
+
+  async function cargarProductos() {
+    const { data } = await supabase.from('productos').select('*').order('nombre')
+    if (data) setProductosDisponibles(data)
+    setCargando(false)
+  }
+
+  async function cargarVentas() {
+    const { data } = await supabase.from('ventas').select('*').order('created_at', { ascending: false })
+    if (data) setVentas(data)
+  }
 
   function agregarAlCarrito(producto) {
     const existe = carrito.find(p => p.id === producto.id)
@@ -30,17 +40,15 @@ function Ventas() {
 
   const total = carrito.reduce((acc, p) => acc + p.precio * p.cantidad, 0)
 
-  function confirmarVenta() {
+  async function confirmarVenta() {
     if (!cliente || carrito.length === 0) return
-    const venta = {
-      id: ventas.length + 1,
+    const { data } = await supabase.from('ventas').insert([{
       cliente,
       total,
       items: carrito.length,
-      fecha: new Date().toLocaleDateString('es-AR'),
       estado: 'Pendiente',
-    }
-    setVentas([venta, ...ventas])
+    }]).select()
+    if (data) setVentas([data[0], ...ventas])
     setCarrito([])
     setCliente('')
     setVista('historial')
@@ -67,36 +75,37 @@ function Ventas() {
       </div>
 
       <div className="p-5 flex flex-col gap-4">
-
         {vista === 'nueva' && (
           <div className="grid grid-cols-2 gap-4">
-
-            {/* Productos */}
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <p className="text-sm font-medium text-gray-900 mb-3">Productos</p>
-              <div className="flex flex-col gap-2">
-                {productosDisponibles.map(producto => (
-                  <div key={producto.id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                    <div>
-                      <p className="text-xs font-medium text-gray-900">{producto.nombre}</p>
-                      <p className="text-xs text-gray-400">${producto.precio.toLocaleString()} · {producto.stock} en stock</p>
+              {cargando ? (
+                <p className="text-xs text-gray-300 text-center py-8">Cargando productos...</p>
+              ) : productosDisponibles.length === 0 ? (
+                <p className="text-xs text-gray-300 text-center py-8">No hay productos cargados todavía</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {productosDisponibles.map(producto => (
+                    <div key={producto.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                      <div>
+                        <p className="text-xs font-medium text-gray-900">{producto.nombre}</p>
+                        <p className="text-xs text-gray-400">${producto.precio.toLocaleString()} · {producto.stock} en stock</p>
+                      </div>
+                      <button
+                        onClick={() => agregarAlCarrito(producto)}
+                        disabled={producto.stock === 0}
+                        className="text-xs border border-gray-200 px-3 py-1 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                      >
+                        + añadir
+                      </button>
                     </div>
-                    <button
-                      onClick={() => agregarAlCarrito(producto)}
-                      disabled={producto.stock === 0}
-                      className="text-xs border border-gray-200 px-3 py-1 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30"
-                    >
-                      + añadir
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Carrito */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col">
               <p className="text-sm font-medium text-gray-900 mb-3">Resumen del pedido</p>
-
               <div className="mb-4">
                 <label className="text-xs text-gray-400 block mb-1">Cliente</label>
                 <input
@@ -164,7 +173,7 @@ function Ventas() {
                     <tr key={venta.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-400">#{venta.id}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{venta.cliente}</td>
-                      <td className="px-4 py-3 text-gray-400">{venta.fecha}</td>
+                      <td className="px-4 py-3 text-gray-400">{new Date(venta.created_at).toLocaleDateString('es-AR')}</td>
                       <td className="px-4 py-3 text-gray-400">{venta.items} productos</td>
                       <td className="px-4 py-3">${venta.total.toLocaleString()}</td>
                       <td className="px-4 py-3"><span className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">{venta.estado}</span></td>
@@ -175,7 +184,6 @@ function Ventas() {
             )}
           </div>
         )}
-
       </div>
     </div>
   )
