@@ -1,1 +1,34 @@
 @import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+* {
+  font-family: 'DM Sans', sans-serif;
+}
+
+:root {
+  --sidebar-bg: #0f0f0f;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --accent: #d4f57a;
+  --accent-dim: rgba(212,245,122,0.12);
+}
+
+body {
+  background: #e8e5e0;
+  color: #1a1a1a;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d0cfc9;
+  border-radius: 4px;
+}
+
+input, select, button {
+  font-family: 'DM Sans', sans-serif;
+}

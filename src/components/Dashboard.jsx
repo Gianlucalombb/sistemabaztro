@@ -1,96 +1,151 @@
-function Dashboard() {
-  return (
-    <div className="flex-1 flex flex-col">
+import { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 
-      {/* Topbar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+function Dashboard() {
+  const [stats, setStats] = useState({
+    cantidadVentas: 0,
+    ingresosSemana: 0,
+    ventasSemana: 0,
+    cotizacionesPendientes: 0,
+    productosInactivos: 0,
+  })
+  const [ultimasVentas, setUltimasVentas] = useState([])
+  const [cotizacionesPendientes, setCotizacionesPendientes] = useState([])
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    cargarDatos()
+  }, [])
+
+  async function cargarDatos() {
+    const haceUnaSemana = new Date()
+    haceUnaSemana.setDate(haceUnaSemana.getDate() - 7)
+
+    const [{ data: ventas }, { data: cotizaciones }, { data: productos }] = await Promise.all([
+      supabase.from('ventas').select('*').order('fecha', { ascending: false }),
+      supabase.from('cotizaciones').select('*').eq('estado', 'Pendiente'),
+      supabase.from('productos').select('*'),
+    ])
+
+    if (ventas) {
+      const ventasSemana = ventas.filter(v => {
+        const fechaVenta = new Date(v.fecha + 'T12:00:00')
+        return fechaVenta >= haceUnaSemana
+      })
+      const ingresosSemana = ventasSemana.reduce((acc, v) => acc + (v.ganancia || 0), 0)
+      setUltimasVentas(ventas.slice(0, 4))
+      setStats(prev => ({
+        ...prev,
+        cantidadVentas: ventas.length,
+        ingresosSemana,
+        ventasSemana: ventasSemana.length,
+      }))
+    }
+
+    if (cotizaciones) {
+      setStats(prev => ({ ...prev, cotizacionesPendientes: cotizaciones.length }))
+      setCotizacionesPendientes(cotizaciones)
+    }
+
+    if (productos) {
+      const inactivos = productos.filter(p => !p.activo).length
+      setStats(prev => ({ ...prev, productosInactivos: inactivos }))
+    }
+
+    setCargando(false)
+  }
+
+  if (cargando) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-gray-300 text-sm">Cargando dashboard...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-auto">
+      <div className="bg-stone-100 border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <p className="font-medium text-gray-900">Dashboard</p>
-        <p className="text-xs text-gray-400">Mayo 2026</p>
+        <p className="text-xs text-gray-400">
+          {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
       </div>
 
-      {/* Contenido */}
       <div className="p-5 flex flex-col gap-4">
 
-        {/* Métricas */}
         <div className="grid grid-cols-4 gap-3">
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-xs text-gray-400 mb-2">Ventas del mes</p>
-            <p className="text-2xl font-medium text-gray-900">$284k</p>
-            <p className="text-xs text-green-700 mt-1">↑ 12% vs. mes anterior</p>
+          <div className="bg-stone-100 border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-400 mb-2">Total de ventas</p>
+            <p className="text-2xl font-medium text-gray-900">{stats.cantidadVentas}</p>
+            <p className="text-xs text-gray-400 mt-1">pedidos registrados</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-xs text-gray-400 mb-2">Pedidos</p>
-            <p className="text-2xl font-medium text-gray-900">147</p>
-            <p className="text-xs text-green-700 mt-1">↑ 8 nuevos hoy</p>
+          <div className="bg-stone-100 border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-400 mb-2">Ganancia esta semana</p>
+            <p className="text-2xl font-medium text-gray-900">${stats.ingresosSemana.toLocaleString()}</p>
+            <p className="text-xs text-gray-400 mt-1">últimos 7 días</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-xs text-gray-400 mb-2">Productos activos</p>
-            <p className="text-2xl font-medium text-gray-900">312</p>
-            <p className="text-xs text-gray-400 mt-1">en catálogo</p>
+          <div className="bg-stone-100 border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-400 mb-2">Ventas esta semana</p>
+            <p className="text-2xl font-medium text-gray-900">{stats.ventasSemana}</p>
+            <p className="text-xs text-gray-400 mt-1">pedidos esta semana</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-xs text-gray-400 mb-2">Stock bajo</p>
-            <p className="text-2xl font-medium text-gray-900">18</p>
-            <p className="text-xs text-red-500 mt-1">↓ requieren atención</p>
+          <div className="bg-stone-100 border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-400 mb-2">Productos inactivos</p>
+            <p className="text-2xl font-medium text-gray-900">{stats.productosInactivos}</p>
+            <p className="text-xs text-gray-400 mt-1">sin stock o desactivados</p>
           </div>
         </div>
 
-        {/* Tabla + más vendidos */}
         <div className="grid grid-cols-5 gap-3">
-          <div className="col-span-3 bg-white border border-gray-200 rounded-xl p-4">
+          <div className="col-span-3 bg-stone-100 border border-gray-200 rounded-xl p-4">
             <p className="text-sm font-medium text-gray-900 mb-3">Últimas ventas</p>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-100">
-                  <th className="text-left pb-2 font-normal">Cliente</th>
-                  <th className="text-left pb-2 font-normal">Monto</th>
-                  <th className="text-left pb-2 font-normal">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-50">
-                  <td className="py-2">Distribuidora López</td>
-                  <td className="py-2">$12.400</td>
-                  <td className="py-2"><span className="bg-green-50 text-green-700 px-2 py-1 rounded-full">Pagado</span></td>
-                </tr>
-                <tr className="border-b border-gray-50">
-                  <td className="py-2">Mercado El Sol</td>
-                  <td className="py-2">$8.750</td>
-                  <td className="py-2"><span className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">Pendiente</span></td>
-                </tr>
-                <tr className="border-b border-gray-50">
-                  <td className="py-2">Almacén Don Pepe</td>
-                  <td className="py-2">$5.200</td>
-                  <td className="py-2"><span className="bg-green-50 text-green-700 px-2 py-1 rounded-full">Pagado</span></td>
-                </tr>
-                <tr>
-                  <td className="py-2">Súper Familia</td>
-                  <td className="py-2">$19.800</td>
-                  <td className="py-2"><span className="bg-red-50 text-red-700 px-2 py-1 rounded-full">Sin pagar</span></td>
-                </tr>
-              </tbody>
-            </table>
+            {ultimasVentas.length === 0 ? (
+              <p className="text-xs text-gray-300 text-center py-8">Todavía no hay ventas registradas</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-100">
+                    <th className="text-left pb-2 font-normal">Cliente</th>
+                    <th className="text-left pb-2 font-normal">Fecha</th>
+                    <th className="text-left pb-2 font-normal">Ganancia</th>
+                    <th className="text-left pb-2 font-normal">Quién</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ultimasVentas.map(venta => (
+                    <tr key={venta.id} className="border-b border-gray-50">
+                      <td className="py-2 font-medium text-gray-900">{venta.cliente}</td>
+                      <td className="py-2 text-gray-400">{new Date(venta.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td>
+                      <td className="py-2 text-green-700 font-medium">${(venta.ganancia || 0).toLocaleString()}</td>
+                      <td className="py-2 text-gray-400">{venta.quien}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
-          <div className="col-span-2 bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-sm font-medium text-gray-900 mb-3">Más vendidos</p>
-            <div className="flex flex-col gap-3">
-              {[
-                { nombre: 'Aceite x12', valor: 88 },
-                { nombre: 'Arroz 5kg', valor: 72 },
-                { nombre: 'Azúcar 2kg', valor: 60 },
-                { nombre: 'Harina x10', valor: 45 },
-                { nombre: 'Yerba 500g', valor: 38 },
-              ].map((item) => (
-                <div key={item.nombre} className="flex items-center gap-2">
-                  <p className="text-xs text-gray-400 w-20 truncate">{item.nombre}</p>
-                  <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                    <div className="bg-gray-900 h-1.5 rounded-full" style={{ width: `${item.valor}%` }}></div>
-                  </div>
-                  <p className="text-xs text-gray-400 w-8 text-right">{item.valor}</p>
-                </div>
-              ))}
+          <div className="col-span-2 bg-stone-100 border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-gray-900">Cotizaciones pendientes</p>
+              <span className="text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">{stats.cotizacionesPendientes}</span>
             </div>
+            {cotizacionesPendientes.length === 0 ? (
+              <p className="text-xs text-gray-300 text-center py-8">No hay cotizaciones pendientes</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {cotizacionesPendientes.map((cot) => (
+                  <div key={cot.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <div>
+                      <p className="text-xs font-medium text-gray-900">{cot.cliente}</p>
+                      <p className="text-xs text-gray-400">{new Date(cot.created_at).toLocaleDateString('es-AR')}</p>
+                    </div>
+                    <span className="text-xs font-medium text-gray-900">${(cot.total || 0).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

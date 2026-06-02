@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 function Cotizaciones() {
-  const [productosDisponibles, setProductosDisponibles] = useState([])
-  const [cliente, setCliente] = useState('')
-  const [validez, setValidez] = useState('7')
-  const [descuento, setDescuento] = useState(0)
-  const [items, setItems] = useState([])
+  const [productos, setProductos] = useState([])
   const [cotizaciones, setCotizaciones] = useState([])
   const [vista, setVista] = useState('nueva')
-  const [cargando, setCargando] = useState(true)
+  const [cliente, setCliente] = useState('')
+  const [descuento, setDescuento] = useState(0)
+  const [filas, setFilas] = useState([
+    { id: 1, cantidad: '', descripcion: '', precio: '', precio_lista: 0, sugerencias: [], mostrarSugerencias: false }
+  ])
 
   useEffect(() => {
     cargarProductos()
@@ -17,9 +19,8 @@ function Cotizaciones() {
   }, [])
 
   async function cargarProductos() {
-    const { data } = await supabase.from('productos').select('*').order('nombre')
-    if (data) setProductosDisponibles(data)
-    setCargando(false)
+    const { data } = await supabase.from('productos').select('*').eq('activo', true).order('nombre')
+    if (data) setProductos(data)
   }
 
   async function cargarCotizaciones() {
@@ -27,55 +28,223 @@ function Cotizaciones() {
     if (data) setCotizaciones(data)
   }
 
-  function agregarItem(producto) {
-    const existe = items.find(p => p.id === producto.id)
-    if (existe) {
-      setItems(items.map(p => p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p))
-    } else {
-      setItems([...items, { ...producto, cantidad: 1 }])
-    }
+  function agregarFila() {
+    const nuevaId = filas.length > 0 ? Math.max(...filas.map(f => f.id)) + 1 : 1
+    setFilas([...filas, { id: nuevaId, cantidad: '', descripcion: '', precio: '', precio_lista: 0, sugerencias: [], mostrarSugerencias: false }])
   }
 
-  function quitarItem(id) {
-    setItems(items.filter(p => p.id !== id))
+  function borrarFila(id) {
+    if (filas.length === 1) return
+    setFilas(filas.filter(f => f.id !== id))
   }
 
-  function cambiarCantidad(id, cantidad) {
-    if (cantidad < 1) return
-    setItems(items.map(p => p.id === id ? { ...p, cantidad: Number(cantidad) } : p))
+  function actualizarFila(id, campo, valor) {
+    setFilas(filas.map(f => {
+      if (f.id !== id) return f
+      const actualizada = { ...f, [campo]: valor }
+      if (campo === 'descripcion') {
+        const sugerencias = valor.length > 1
+          ? productos.filter(p => p.nombre.toLowerCase().includes(valor.toLowerCase())).slice(0, 5)
+          : []
+        actualizada.sugerencias = sugerencias
+        actualizada.mostrarSugerencias = sugerencias.length > 0
+      }
+      return actualizada
+    }))
+  }
+function elegirProducto(filaId, producto) {
+    setFilas(filas.map(f => f.id === filaId ? {
+      ...f,
+      descripcion: producto.nombre,
+      precio: producto.precio_venta || producto.precio || '',
+      precio_lista: producto.precio_lista || 0,
+      sugerencias: [],
+      mostrarSugerencias: false,
+    } : f))
   }
 
-  const subtotal = items.reduce((acc, p) => acc + p.precio * p.cantidad, 0)
-  const descuentoMonto = subtotal * (descuento / 100)
-  const total = subtotal - descuentoMonto
+  const subtotal = filas.reduce((acc, f) => acc + ((Number(f.cantidad) || 0) * (Number(f.precio) || 0)), 0)
+  const costoTotal = filas.reduce((acc, f) => acc + ((Number(f.cantidad) || 0) * (Number(f.precio_lista) || 0)), 0)
+const descuentoMonto = subtotal * (descuento / 100)
+const total = subtotal - descuentoMonto
+const gananciaReal = total - costoTotal
 
   async function guardarCotizacion() {
-    if (!cliente || items.length === 0) return
+    if (!cliente) return alert('Agregá un cliente')
+    const itemsValidos = filas.filter(f => f.descripcion && f.cantidad && f.precio)
+    if (itemsValidos.length === 0) return alert('Agregá al menos un producto')
+
     const { data } = await supabase.from('cotizaciones').insert([{
       cliente,
-      validez,
+      validez: '7',
       descuento,
       subtotal,
       total,
-      estado: 'Borrador',
+      estado: 'Pendiente',
+      items: JSON.stringify(itemsValidos),
     }]).select()
+
     if (data) setCotizaciones([data[0], ...cotizaciones])
     setCliente('')
-    setItems([])
     setDescuento(0)
+    setFilas([{ id: 1, cantidad: '', descripcion: '', precio: '', sugerencias: [], mostrarSugerencias: false }])
     setVista('historial')
+  }
+
+  async function cambiarEstado(id, estado) {
+    await supabase.from('cotizaciones').update({ estado }).eq('id', id)
+    setCotizaciones(cotizaciones.map(c => c.id === id ? { ...c, estado } : c))
+  }
+
+  async function borrarCotizacion(id) {
+    if (!confirm('¿Seguro que querés borrar esta cotización?')) return
+    await supabase.from('cotizaciones').delete().eq('id', id)
+    setCotizaciones(cotizaciones.filter(c => c.id !== id))
+  }
+
+function exportarPDF(cot) {
+    const doc = new jsPDF()
+    const items = JSON.parse(cot.items || '[]')
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    const img = new Image()
+    img.src = '/logo.png'
+    img.onload = () => {
+      doc.addImage(img, 'PNG', pageWidth / 2 - 20, 8, 40, 28)
+
+      doc.setFontSize(20)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(20, 20, 20)
+      doc.text('Presupuesto', 14, 18)
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(120, 120, 120)
+      doc.text(new Date().toLocaleDateString('es-AR'), 14, 24)
+      doc.text(`Cliente: ${cot.cliente}`, 14, 30)
+
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(20, 20, 20)
+      doc.text('Baztro Mayorista', pageWidth - 14, 14, { align: 'right' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('Teléfono: 11-68660232', pageWidth - 14, 20, { align: 'right' })
+      doc.text('Av. Juan de Garay 2537', pageWidth - 14, 25, { align: 'right' })
+      doc.text('San Cristobal CABA CP: 1256', pageWidth - 14, 30, { align: 'right' })
+
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.line(14, 40, pageWidth - 14, 40)
+
+      const subtotalCot = cot.subtotal || 0
+      const descuentoMonto = subtotalCot - (cot.total || 0)
+      const tieneDescuento = cot.descuento > 0
+
+      autoTable(doc, {
+        startY: 45,
+        head: [['Cantidad', 'Descripción', 'Precio Unitario', 'Total']],
+        body: items.map(i => [
+          i.cantidad,
+          i.descripcion,
+          `$ ${Number(i.precio).toLocaleString('es-AR')}`,
+          `$ ${(Number(i.cantidad) * Number(i.precio)).toLocaleString('es-AR')}`,
+        ]),
+        styles: {
+          fontSize: 9,
+          cellPadding: 4,
+          textColor: [40, 40, 40],
+        },
+        headStyles: {
+          fillColor: [20, 20, 20],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        alternateRowStyles: {
+          fillColor: [248, 248, 248],
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 25 },
+          1: { cellWidth: 'auto' },
+          2: { halign: 'right', cellWidth: 38 },
+          3: { halign: 'right', cellWidth: 35 },
+        },
+        tableLineColor: [220, 220, 220],
+        tableLineWidth: 0.1,
+      })
+
+      const finalY = doc.lastAutoTable.finalY + 8
+      const footerX = pageWidth - 14
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('Sub-Total:', footerX - 38, finalY, { align: 'right' })
+      doc.setTextColor(20, 20, 20)
+      doc.text(`$ ${subtotalCot.toLocaleString('es-AR')}`, footerX, finalY, { align: 'right' })
+
+      doc.setTextColor(100, 100, 100)
+      doc.text('Descuento:', footerX - 38, finalY + 7, { align: 'right' })
+      doc.setTextColor(20, 20, 20)
+      if (tieneDescuento) {
+        doc.text(`$ ${descuentoMonto.toLocaleString('es-AR')}`, footerX, finalY + 7, { align: 'right' })
+      } else {
+        doc.setTextColor(150, 150, 150)
+        doc.setFont('helvetica', 'italic')
+        doc.text('Ya aplicado', footerX, finalY + 7, { align: 'right' })
+      }
+
+      doc.setDrawColor(180, 180, 180)
+      doc.setLineWidth(0.3)
+      doc.line(footerX - 65, finalY + 11, footerX, finalY + 11)
+
+      doc.setFillColor(20, 20, 20)
+      doc.roundedRect(footerX - 65, finalY + 13, 65, 11, 2, 2, 'F')
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(255, 255, 255)
+      doc.text('TOTAL', footerX - 38, finalY + 20, { align: 'right' })
+      doc.text(
+        `$ ${(tieneDescuento ? cot.total : subtotalCot).toLocaleString('es-AR')}`,
+        footerX - 2,
+        finalY + 20,
+        { align: 'right' }
+      )
+
+      const footerY = 284
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.3)
+      doc.line(14, footerY - 5, pageWidth - 14, footerY - 5)
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(140, 140, 140)
+      doc.text(
+        'Baztro Mayorista  ·  CUIT: 20464990640  ·  Tel: 1168660232  ·  Instagram: BaztroMayorista  ·  Facebook: Baztro Mayorista Online',
+        pageWidth / 2,
+        footerY,
+        { align: 'center' }
+      )
+
+      doc.save(`presupuesto-${cot.cliente}-${String(cot.id).padStart(4, '0')}.pdf`)
+    }
+  }
+
+  function getBadge(estado) {
+    if (estado === 'Confirmada') return 'bg-green-50 text-green-700'
+    return 'bg-yellow-50 text-yellow-700'
   }
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <div className="bg-stone-100 border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <p className="font-medium text-gray-900">Cotizaciones</p>
         <div className="flex gap-2">
           <button
             onClick={() => setVista('nueva')}
             className={`text-xs px-4 py-2 rounded-lg ${vista === 'nueva' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500'}`}
           >
-            + Nueva cotización
+            + Nueva
           </button>
           <button
             onClick={() => setVista('historial')}
@@ -87,38 +256,11 @@ function Cotizaciones() {
       </div>
 
       <div className="p-5 flex flex-col gap-4">
+
         {vista === 'nueva' && (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-sm font-medium text-gray-900 mb-3">Productos</p>
-              {cargando ? (
-                <p className="text-xs text-gray-300 text-center py-8">Cargando productos...</p>
-              ) : productosDisponibles.length === 0 ? (
-                <p className="text-xs text-gray-300 text-center py-8">No hay productos cargados todavía</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {productosDisponibles.map(producto => (
-                    <div key={producto.id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                      <div>
-                        <p className="text-xs font-medium text-gray-900">{producto.nombre}</p>
-                        <p className="text-xs text-gray-400">${producto.precio.toLocaleString()}</p>
-                      </div>
-                      <button
-                        onClick={() => agregarItem(producto)}
-                        className="text-xs border border-gray-200 px-3 py-1 rounded-lg text-gray-500 hover:bg-gray-50"
-                      >
-                        + añadir
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-4">
-              <p className="text-sm font-medium text-gray-900">Detalle de cotización</p>
-
-              <div className="grid grid-cols-2 gap-3">
+          <>
+            <div className="bg-stone-100 border border-gray-200 rounded-xl p-5">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Cliente *</label>
                   <input
@@ -130,81 +272,143 @@ function Cotizaciones() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Validez (días)</label>
+                  <label className="text-xs text-gray-400 block mb-1">Descuento (%)</label>
                   <input
                     type="number"
-                    value={validez}
-                    onChange={(e) => setValidez(e.target.value)}
+                    value={descuento}
+                    onChange={(e) => setDescuento(Number(e.target.value))}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    min="0" max="100"
                   />
                 </div>
               </div>
 
-              {items.length === 0 ? (
-                <p className="text-xs text-gray-300 text-center py-6">Agregá productos a la cotización</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {items.map(item => (
-                    <div key={item.id} className="flex items-center gap-2 text-xs py-2 border-b border-gray-50">
-                      <p className="flex-1 text-gray-900">{item.nombre}</p>
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={(e) => cambiarCantidad(item.id, e.target.value)}
-                        className="w-14 border border-gray-200 rounded px-2 py-1 text-center outline-none"
-                      />
-                      <p className="w-20 text-right text-gray-600">${(item.precio * item.cantidad).toLocaleString()}</p>
-                      <button onClick={() => quitarItem(item.id)} className="text-gray-300 hover:text-red-400">✕</button>
-                    </div>
+              <table className="w-full text-xs mb-3">
+                <thead>
+                  <tr className="border-b border-gray-100 text-gray-400">
+                    <th className="text-left py-2 font-normal w-20">Cantidad</th>
+                    <th className="text-left py-2 font-normal">Descripción</th>
+                    <th className="text-left py-2 font-normal w-32">Precio unit.</th>
+                    <th className="text-left py-2 font-normal w-32">Total</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map(fila => (
+                    <tr key={fila.id} className="border-b border-gray-50">
+                      <td className="py-1 pr-2">
+                        <input
+                          type="number"
+                          value={fila.cantidad}
+                          onChange={(e) => actualizarFila(fila.id, 'cantidad', e.target.value)}
+                          className="w-full border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-400"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="py-1 pr-2 relative">
+                        <input
+                          type="text"
+                          value={fila.descripcion}
+                          onChange={(e) => actualizarFila(fila.id, 'descripcion', e.target.value)}
+                          onBlur={() => setTimeout(() => actualizarFila(fila.id, 'mostrarSugerencias', false), 150)}
+                          className="w-full border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-400"
+                          placeholder="Escribí para buscar..."
+                        />
+                        {fila.mostrarSugerencias && fila.sugerencias.length > 0 && (
+                          <div className="absolute z-10 top-full left-0 right-0 bg-stone-100 border border-gray-200 rounded-lg shadow-sm mt-1">
+                            {fila.sugerencias.map(p => (
+                              <div
+                                key={p.id}
+                                onMouseDown={() => elegirProducto(fila.id, p)}
+                                className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between"
+                              >
+                                <span>{p.nombre}</span>
+                                <span className="text-gray-400">${(p.precio_venta || p.precio || 0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-1 pr-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1.5 text-gray-400">$</span>
+                          <input
+                            type="number"
+                            value={fila.precio}
+                            onChange={(e) => actualizarFila(fila.id, 'precio', e.target.value)}
+                            className="w-full border border-gray-200 rounded pl-5 pr-2 py-1.5 outline-none focus:border-gray-400"
+                            placeholder="0"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-1 pr-2 text-gray-600">
+                        ${((Number(fila.cantidad) || 0) * (Number(fila.precio) || 0)).toLocaleString()}
+                      </td>
+                      <td className="py-1">
+                        <button onClick={() => borrarFila(fila.id)} className="text-gray-300 hover:text-red-400">✕</button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Descuento (%)</label>
-                <input
-                  type="number"
-                  value={descuento}
-                  onChange={(e) => setDescuento(Number(e.target.value))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400"
-                  min="0"
-                  max="100"
-                />
-              </div>
-
-              <div className="border-t border-gray-100 pt-3 flex flex-col gap-1">
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>Subtotal</span>
-                  <span>${subtotal.toLocaleString()}</span>
-                </div>
-                {descuento > 0 && (
-                  <div className="flex justify-between text-xs text-gray-400">
-                    <span>Descuento ({descuento}%)</span>
-                    <span>-${descuentoMonto.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-medium text-gray-900 mt-1">
-                  <span>Total</span>
-                  <span>${total.toLocaleString()}</span>
-                </div>
-              </div>
+                </tbody>
+              </table>
 
               <button
+                onClick={agregarFila}
+                className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50 w-full mb-4"
+              >
+                + Agregar fila
+              </button>
+
+              <div className="flex justify-end">
+                <div className="w-52 flex flex-col gap-1">
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>Subtotal</span>
+                    <span>${subtotal.toLocaleString()}</span>
+                  </div>
+                  {descuento > 0 && (
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>Descuento ({descuento}%)</span>
+                      <span>-${descuentoMonto.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-medium text-gray-900 border-t border-gray-100 pt-2 mt-1">
+                    <span>Total</span>
+                    <span>${total.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex gap-3">
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-gray-400 mb-1">Costo total</p>
+                  <p className="text-sm font-medium text-gray-900">${costoTotal.toLocaleString()}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-gray-400 mb-1">Venta sin descuento</p>
+                  <p className="text-sm font-medium text-gray-900">${subtotal.toLocaleString()}</p>
+                </div>
+                <div className="bg-green-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-green-600 mb-1">Ganancia real</p>
+                  <p className="text-sm font-medium text-green-700">${gananciaReal.toLocaleString()}</p>
+                </div>
+              </div>
+              <button
                 onClick={guardarCotizacion}
-                disabled={!cliente || items.length === 0}
-                className="bg-gray-900 text-white text-sm py-2 rounded-lg disabled:opacity-30"
+                className="bg-gray-900 text-white text-sm px-6 py-2 rounded-lg"
               >
                 Guardar cotización
               </button>
             </div>
-          </div>
+          </>
         )}
 
         {vista === 'historial' && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-stone-100 border border-gray-200 rounded-xl overflow-hidden">
             {cotizaciones.length === 0 ? (
               <div className="text-center py-16">
-                <p className="text-gray-300 text-sm">Todavía no hay cotizaciones</p>
+                <p className="text-gray-300 text-sm">No hay cotizaciones todavía</p>
                 <button onClick={() => setVista('nueva')} className="mt-3 text-xs text-gray-400 underline">Crear primera cotización</button>
               </div>
             ) : (
@@ -214,9 +418,9 @@ function Cotizaciones() {
                     <th className="text-left px-4 py-3 font-normal">#</th>
                     <th className="text-left px-4 py-3 font-normal">Cliente</th>
                     <th className="text-left px-4 py-3 font-normal">Fecha</th>
-                    <th className="text-left px-4 py-3 font-normal">Validez</th>
                     <th className="text-left px-4 py-3 font-normal">Total</th>
                     <th className="text-left px-4 py-3 font-normal">Estado</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -225,9 +429,36 @@ function Cotizaciones() {
                       <td className="px-4 py-3 text-gray-400">#{String(cot.id).padStart(4, '0')}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{cot.cliente}</td>
                       <td className="px-4 py-3 text-gray-400">{new Date(cot.created_at).toLocaleDateString('es-AR')}</td>
-                      <td className="px-4 py-3 text-gray-400">{cot.validez} días</td>
-                      <td className="px-4 py-3">${cot.total.toLocaleString()}</td>
-                      <td className="px-4 py-3"><span className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">{cot.estado}</span></td>
+                      <td className="px-4 py-3">${(cot.total || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full ${getBadge(cot.estado)}`}>{cot.estado}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 justify-end">
+                          {cot.estado === 'Pendiente' && (
+                            <button
+                              onClick={() => cambiarEstado(cot.id, 'Confirmada')}
+                              className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-lg hover:bg-green-100"
+                            >
+                              ✓ Confirmar
+                            </button>
+                          )}
+                          {cot.items && (
+                            <button
+                              onClick={() => exportarPDF(cot)}
+                              className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-200"
+                            >
+                              PDF
+                            </button>
+                          )}
+                          <button
+                            onClick={() => borrarCotizacion(cot.id)}
+                            className="text-xs bg-red-50 text-red-400 px-2 py-1 rounded-lg hover:bg-red-100"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -235,6 +466,7 @@ function Cotizaciones() {
             )}
           </div>
         )}
+
       </div>
     </div>
   )

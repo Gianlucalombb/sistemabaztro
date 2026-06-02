@@ -39,7 +39,7 @@ function Clientes() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <div className="bg-stone-100 border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <p className="font-medium text-gray-900">Clientes</p>
         <button
           onClick={() => setMostrarForm(true)}
@@ -52,7 +52,7 @@ function Clientes() {
       <div className="p-5 flex flex-col gap-4">
 
         {mostrarForm && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="bg-stone-100 border border-gray-200 rounded-xl p-4">
             <p className="text-sm font-medium text-gray-900 mb-4">Nuevo cliente</p>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
@@ -103,7 +103,7 @@ function Clientes() {
           </div>
         )}
 
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-2 flex items-center gap-2">
+        <div className="bg-stone-100 border border-gray-200 rounded-xl px-4 py-2 flex items-center gap-2">
           <span className="text-gray-400">🔍</span>
           <input
             type="text"
@@ -114,7 +114,7 @@ function Clientes() {
           />
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-stone-100 border border-gray-200 rounded-xl overflow-hidden">
           {cargando ? (
             <p className="text-xs text-gray-300 text-center py-12">Cargando clientes...</p>
           ) : (
