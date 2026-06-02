@@ -42,11 +42,13 @@ function Ventas() {
 
   useEffect(() => {
     cargarVentas()
+    const intervalo = setInterval(cargarVentas, 15000)
+    return () => clearInterval(intervalo)
   }, [])
 
   async function cargarVentas() {
     setCargando(true)
-    const { data } = await supabase.from('ventas').select('*').order('fecha', { ascending: false })
+    const { data } = await supabase.from('ventas').select('*').order('id', { ascending: false })
     if (data) setVentas(data)
     setCargando(false)
   }

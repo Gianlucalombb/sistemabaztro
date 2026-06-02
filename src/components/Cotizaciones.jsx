@@ -16,6 +16,8 @@ function Cotizaciones() {
   useEffect(() => {
     cargarProductos()
     cargarCotizaciones()
+    const intervalo = setInterval(cargarCotizaciones, 15000)
+    return () => clearInterval(intervalo)
   }, [])
 
   async function cargarProductos() {

@@ -13,6 +13,8 @@ function Productos() {
 
   useEffect(() => {
     cargarProductos()
+    const intervalo = setInterval(cargarProductos, 15000)
+    return () => clearInterval(intervalo)
   }, [])
 
   async function cargarProductos() {

@@ -15,6 +15,8 @@ function Dashboard() {
 
   useEffect(() => {
     cargarDatos()
+    const intervalo = setInterval(cargarDatos, 15000)
+    return () => clearInterval(intervalo)
   }, [])
 
   async function cargarDatos() {
