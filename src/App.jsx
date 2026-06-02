@@ -85,29 +85,39 @@ const navItems = [
 
 function Sistema() {
   const [seccion, setSeccion] = useState('dashboard')
+  const [menuAbierto, setMenuAbierto] = useState(false)
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#f7f6f3' }}>
-      <div className="w-56 flex-shrink-0 flex flex-col" style={{ background: '#1a1a1a' }}>
-        <div className="p-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full flex-shrink-0" style={{ background: '#c8f564' }}></div>
-            <span className="text-white font-medium text-sm">Baztro</span>
-          </div>
-          <p className="text-xs mt-0.5 ml-7" style={{ color: 'rgba(255,255,255,0.3)' }}>Sistema Mayorista</p>
-        </div>
+    <div className="min-h-screen flex flex-col" style={{ background: '#e8e5e0' }}>
 
-        <nav className="flex-1 p-3 flex flex-col gap-0.5">
-          <p className="text-xs px-3 pt-4 pb-2 uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>Principal</p>
+      {/* Topbar mobile */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200" style={{ background: '#1a1a1a' }}>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full" style={{ background: '#c8f564' }}></div>
+          <span className="text-white font-medium text-sm">Baztro</span>
+        </div>
+        <button onClick={() => setMenuAbierto(!menuAbierto)} className="text-white p-1">
+          {menuAbierto ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* Menu mobile desplegable */}
+      {menuAbierto && (
+        <div className="lg:hidden flex flex-col py-2 border-b border-gray-800" style={{ background: '#1a1a1a' }}>
           {navItems.map(item => (
             <button
               key={item.key}
-              onClick={() => setSeccion(item.key)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm w-full text-left transition-all"
-              style={{
-                background: seccion === item.key ? 'rgba(200,245,100,0.12)' : 'transparent',
-                color: seccion === item.key ? '#c8f564' : 'rgba(255,255,255,0.45)',
-              }}
+              onClick={() => { setSeccion(item.key); setMenuAbierto(false) }}
+              className="flex items-center gap-3 px-5 py-3 text-sm w-full text-left"
+              style={{ color: seccion === item.key ? '#c8f564' : 'rgba(255,255,255,0.5)' }}
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
@@ -115,25 +125,58 @@ function Sistema() {
               {item.label}
             </button>
           ))}
-        </nav>
+        </div>
+      )}
 
-        <div className="p-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium" style={{ background: '#c8f564', color: '#1a1a1a' }}>A</div>
-            <div>
-              <p className="text-xs font-medium text-white">Admin</p>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Baztro</p>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar desktop */}
+        <div className="hidden lg:flex w-56 flex-shrink-0 flex-col" style={{ background: '#1a1a1a' }}>
+          <div className="p-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full flex-shrink-0" style={{ background: '#c8f564' }}></div>
+              <span className="text-white font-medium text-sm">Baztro</span>
+            </div>
+            <p className="text-xs mt-0.5 ml-7" style={{ color: 'rgba(255,255,255,0.3)' }}>Sistema Mayorista</p>
+          </div>
+          <nav className="flex-1 p-3 flex flex-col gap-0.5">
+            <p className="text-xs px-3 pt-4 pb-2 uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>Principal</p>
+            {navItems.map(item => (
+              <button
+                key={item.key}
+                onClick={() => setSeccion(item.key)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm w-full text-left transition-all"
+                style={{
+                  background: seccion === item.key ? 'rgba(200,245,100,0.12)' : 'transparent',
+                  color: seccion === item.key ? '#c8f564' : 'rgba(255,255,255,0.45)',
+                }}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                </svg>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium" style={{ background: '#c8f564', color: '#1a1a1a' }}>A</div>
+              <div>
+                <p className="text-xs font-medium text-white">Admin</p>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Baztro</p>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Contenido */}
+        <div className="flex-1 flex flex-col overflow-auto">
+          {seccion === 'dashboard' && <Dashboard />}
+          {seccion === 'productos' && <Productos />}
+          {seccion === 'ventas' && <Ventas />}
+          {seccion === 'cotizaciones' && <Cotizaciones />}
+        </div>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {seccion === 'dashboard' && <Dashboard />}
-        {seccion === 'productos' && <Productos />}
-        {seccion === 'ventas' && <Ventas />}
-        {seccion === 'cotizaciones' && <Cotizaciones />}
-      </div>
     </div>
   )
 }
