@@ -3,9 +3,11 @@ import { supabase } from '../supabase'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+
 function Cotizaciones() {
   const [productos, setProductos] = useState([])
   const [cotizaciones, setCotizaciones] = useState([])
+  const [editandoId, setEditandoId] = useState(null)
   const [vista, setVista] = useState('nueva')
   const [cliente, setCliente] = useState('')
   const [descuento, setDescuento] = useState(0)
@@ -76,16 +78,30 @@ function Cotizaciones() {
     if (!cliente) return alert('Agregá un cliente')
     const itemsValidos = filas.filter(f => f.descripcion && f.cantidad && f.precio)
     if (itemsValidos.length === 0) return alert('Agregá al menos un producto')
-    const { data } = await supabase.from('cotizaciones').insert([{
-      cliente,
-      validez: '7',
-      descuento,
-      subtotal,
-      total,
-      estado: 'Pendiente',
-      items: JSON.stringify(itemsValidos),
-    }]).select()
-    if (data) setCotizaciones([data[0], ...cotizaciones])
+
+    if (editandoId) {
+      const { data } = await supabase.from('cotizaciones').update({
+        cliente,
+        descuento,
+        subtotal,
+        total,
+        items: JSON.stringify(itemsValidos),
+      }).eq('id', editandoId).select()
+      if (data) setCotizaciones(cotizaciones.map(c => c.id === editandoId ? data[0] : c))
+      setEditandoId(null)
+    } else {
+      const { data } = await supabase.from('cotizaciones').insert([{
+        cliente,
+        validez: '7',
+        descuento,
+        subtotal,
+        total,
+        estado: 'Pendiente',
+        items: JSON.stringify(itemsValidos),
+      }]).select()
+      if (data) setCotizaciones([data[0], ...cotizaciones])
+    }
+
     setCliente('')
     setDescuento(0)
     setFilas([{ id: 1, cantidad: '', descripcion: '', precio: '', precio_lista: 0, sugerencias: [], mostrarSugerencias: false }])
@@ -95,6 +111,23 @@ function Cotizaciones() {
   async function cambiarEstado(id, estado) {
     await supabase.from('cotizaciones').update({ estado }).eq('id', id)
     setCotizaciones(cotizaciones.map(c => c.id === id ? { ...c, estado } : c))
+  }
+
+  function cargarParaEditar(cot) {
+    const items = JSON.parse(cot.items || '[]')
+    setCliente(cot.cliente)
+    setDescuento(cot.descuento || 0)
+    setFilas(items.map((item, i) => ({
+      id: i + 1,
+      cantidad: item.cantidad,
+      descripcion: item.descripcion,
+      precio: item.precio,
+      precio_lista: item.precio_lista || 0,
+      sugerencias: [],
+      mostrarSugerencias: false,
+    })))
+    setEditandoId(cot.id)
+    setVista('nueva')
   }
 
   async function borrarCotizacion(id) {
@@ -128,8 +161,7 @@ function Cotizaciones() {
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
       doc.text('Teléfono: 11-68660232', pageWidth - 14, 20, { align: 'right' })
-      doc.text('Av. Juan de Garay 2537', pageWidth - 14, 25, { align: 'right' })
-      doc.text('San Cristobal CABA CP: 1256', pageWidth - 14, 30, { align: 'right' })
+      doc.text('San Cristobal CABA CP: 1256', pageWidth - 14, 25, { align: 'right' })
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.3)
       doc.line(14, 40, pageWidth - 14, 40)
@@ -327,7 +359,7 @@ function Cotizaciones() {
                 </div>
               </div>
               <button onClick={guardarCotizacion} className="text-white text-sm px-6 py-2.5 rounded-xl w-full lg:w-auto" style={{ background: '#1a1a1a' }}>
-                Guardar cotización
+                {editandoId ? 'Guardar cambios' : 'Guardar cotización'}
               </button>
             </div>
           </>
@@ -354,7 +386,10 @@ function Cotizaciones() {
                     <p className="text-base font-medium text-gray-900">${(cot.total || 0).toLocaleString()}</p>
                     <div className="flex gap-1">
                       {cot.estado === 'Pendiente' && (
-                        <button onClick={() => cambiarEstado(cot.id, 'Confirmada')} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-lg">Confirmar</button>
+                        <>
+                          <button onClick={() => cargarParaEditar(cot)} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">Editar</button>
+                          <button onClick={() => cambiarEstado(cot.id, 'Confirmada')} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-lg">Confirmar</button>
+                        </>
                       )}
                       {cot.items && (
                         <button onClick={() => exportarPDF(cot)} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">PDF</button>

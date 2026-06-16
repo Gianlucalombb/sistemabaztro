@@ -35,7 +35,7 @@ function Dashboard() {
         return fechaVenta >= haceUnaSemana
       })
       const ingresosSemana = ventasSemana.reduce((acc, v) => acc + (v.ganancia || 0), 0)
-      setUltimasVentas(ventas.slice(0, 4))
+      setUltimasVentas(ventas.slice(0, 5))
       setStats(prev => ({
         ...prev,
         cantidadVentas: ventas.length,
@@ -46,7 +46,7 @@ function Dashboard() {
 
     if (cotizaciones) {
       setStats(prev => ({ ...prev, cotizacionesPendientes: cotizaciones.length }))
-      setCotizacionesPendientes(cotizaciones)
+      setCotizacionesPendientes(cotizaciones.slice(0,5))
     }
 
     if (productos) {
