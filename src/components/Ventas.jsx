@@ -22,6 +22,71 @@ function SelectorColor({ valor, onChange }) {
   )
 }
 
+
+  const FormVenta = ({ datos, setDatos, onGuardar, onCancelar, titulo }) => (
+    <div className="bg-stone-100 border-2 border-gray-900 rounded-xl p-4">
+      <p className="text-sm font-medium text-gray-900 mb-4">{titulo}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Fecha</label>
+          <input type="date" value={datos.fecha} onChange={(e) => setDatos({ ...datos, fecha: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none bg-stone-100" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Cliente</label>
+          <input type="text" value={datos.cliente} onChange={(e) => setDatos({ ...datos, cliente: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="Nombre del cliente" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Quién cobró</label>
+          <select value={datos.quien} onChange={(e) => setDatos({ ...datos, quien: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none bg-stone-100">
+            <option>Yo</option>
+            <option>Fábrica</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Costo</label>
+          <div className="relative">
+            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
+            <input type="number" value={datos.costo} onChange={(e) => setDatos({ ...datos, costo: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Venta</label>
+          <div className="relative">
+            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
+            <input type="number" value={datos.venta} onChange={(e) => setDatos({ ...datos, venta: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Ganancia</label>
+          <div className="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-500">
+            ${((Number(datos.venta) || 0) - (Number(datos.costo) || 0)).toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-2">Debe</label>
+          <div className="relative mb-2">
+            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
+            <input type="number" value={datos.debe} onChange={(e) => setDatos({ ...datos, debe: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
+          </div>
+          <SelectorColor valor={datos.debe_color} onChange={(c) => setDatos({ ...datos, debe_color: c })} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-2">Haber</label>
+          <div className="relative mb-2">
+            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
+            <input type="number" value={datos.haber} onChange={(e) => setDatos({ ...datos, haber: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
+          </div>
+          <SelectorColor valor={datos.haber_color} onChange={(c) => setDatos({ ...datos, haber_color: c })} />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onGuardar} className="text-white text-xs px-4 py-2 rounded-lg" style={{ background: '#1a1a1a' }}>Guardar</button>
+        <button onClick={onCancelar} className="border border-gray-200 text-gray-500 text-xs px-4 py-2 rounded-lg">Cancelar</button>
+      </div>
+    </div>
+  )
+
+
 function Ventas() {
   const [ventas, setVentas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -123,68 +188,6 @@ function Ventas() {
   const gananciaTotal = filtro === 'todos' ? BASE_GANANCIA + gananciaFiltrada : gananciaFiltrada
   const ultimoNumero = ventas.length > 0 ? Math.max(...ventas.map(v => v.id)) : BASE_VENTAS
 
-  const FormVenta = ({ datos, setDatos, onGuardar, onCancelar, titulo }) => (
-    <div className="bg-stone-100 border-2 border-gray-900 rounded-xl p-4">
-      <p className="text-sm font-medium text-gray-900 mb-4">{titulo}</p>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Fecha</label>
-          <input type="date" value={datos.fecha} onChange={(e) => setDatos({ ...datos, fecha: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none bg-stone-100" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Cliente</label>
-          <input type="text" value={datos.cliente} onChange={(e) => setDatos({ ...datos, cliente: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="Nombre del cliente" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Quién cobró</label>
-          <select value={datos.quien} onChange={(e) => setDatos({ ...datos, quien: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none bg-stone-100">
-            <option>Yo</option>
-            <option>Fábrica</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Costo</label>
-          <div className="relative">
-            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-            <input type="number" value={datos.costo} onChange={(e) => setDatos({ ...datos, costo: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Venta</label>
-          <div className="relative">
-            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-            <input type="number" value={datos.venta} onChange={(e) => setDatos({ ...datos, venta: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Ganancia</label>
-          <div className="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-500">
-            ${((Number(datos.venta) || 0) - (Number(datos.costo) || 0)).toLocaleString()}
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-2">Debe</label>
-          <div className="relative mb-2">
-            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-            <input type="number" value={datos.debe} onChange={(e) => setDatos({ ...datos, debe: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
-          </div>
-          <SelectorColor valor={datos.debe_color} onChange={(c) => setDatos({ ...datos, debe_color: c })} />
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-2">Haber</label>
-          <div className="relative mb-2">
-            <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-            <input type="number" value={datos.haber} onChange={(e) => setDatos({ ...datos, haber: e.target.value })} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm outline-none bg-stone-100" placeholder="0" />
-          </div>
-          <SelectorColor valor={datos.haber_color} onChange={(c) => setDatos({ ...datos, haber_color: c })} />
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <button onClick={onGuardar} className="text-white text-xs px-4 py-2 rounded-lg" style={{ background: '#1a1a1a' }}>Guardar</button>
-        <button onClick={onCancelar} className="border border-gray-200 text-gray-500 text-xs px-4 py-2 rounded-lg">Cancelar</button>
-      </div>
-    </div>
-  )
 
   return (
     <div className="flex-1 flex flex-col overflow-auto">
